@@ -1,0 +1,47 @@
+/**
+ * Измерение длительностей импульсов через прерывания PCINT2
+ * 
+ * Доступные прерывания в Ардуино Мега 2560:
+ * INT0..5 отключает I2C:CSL(21), I2C:SDA(20), USART1:RX(19), USART1:TX(18), pwm2 (T3outB), pwm3(T3outC) соответственно.
+ * PC_INT0[0..7] отключает SPI:SS(53), SPI:SCK(52), SPI:MOSI(51), SPI:MISO(50), pwm10(T2outA), pwm11(T1outA), pwm12(T1outB), (pwm13!)
+ * PC_INT1[8..10] отключает USART0:RX(0), USART3:RX(15), USART3:TX(14)
+ * PC_INT2[16..23] (Analog8..Analog15)
+ * .. остальные ножки прерываний контроллера ATmega2560 в Ардуино - отсутствуют.
+ * INT0..7 - каждое прерывание использует свой вектор _VECTOR(1..8)
+ * PCINT0..2 - на один вектор - 8 ножек, без контроля с какой ноги прилетело и без управления типом прерываний.
+ */
+#include "arhat.h"
+#include "tsc.h"
+
+#define PULSE_STATES    3
+#define PULSE_BUSY      1               // состояние измерителя "занят, идет замер"
+#define PULSE_SECOND    2               // измеритель "занят, вычисление длительности"
+#define PULSE_OK        3               // "замер произведен, данные верны"
+#define PULSE_TIMER     129             // "ошибка по таймауту" нет сигнала или дальность больше предельной
+#define PULSE_ERROR     128             // "прочие ошибки измерений"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+  TSC_Simple    ctrl;                   // time-state-control for timeouts
+  uint32_t      res;                    // state==PULSE_OK? pulse time in micros : not valid data.
+  uint8_t       state;                  // @see PULSE_STATES constants status for this measuring.
+  uint8_t       pin;                    // interrupt pin for this measuring
+} Pulse;
+
+extern Pulse           pulses[];        // if need pulse_..(): must be defined in your skecth!
+extern uint8_t         pcint2old;       // internal previous PCINT2 interrupt bit statuses
+extern signed char     pcint2numbers[]; // internal map PCINT2 to Pulses data
+
+void pulse_end( Pulse * ptrPulse, uint8_t error);
+void pulse_timeout(Pulse *ptrPulse);
+void pulse_start(uint8_t pulseID, uint8_t pin, uint16_t timeout);
+
+void events_del(uint8_t timerID);
+uint8_t events_add( uint16_t timeout, EventFunction callback, void * data );
+
+#ifdef __cplusplus
+}
+#endif
